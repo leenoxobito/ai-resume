@@ -1,5 +1,5 @@
 
-
+//import { loginWithGoogle} from "./auth.login"
 import { useState } from "react"
 
 const MODE = { LOGIN: "login", REGISTER: "register" }
@@ -31,7 +31,8 @@ export default function AuthScreen({ onAuth }) {
       const data = await res.json()
 
       if (!res.ok) throw new Error(data.error || "Something went wrong")
-        
+
+      
       localStorage.setItem("token", data.token)
       localStorage.setItem("email", data.email)
       onAuth(data.token, data.email)
@@ -125,6 +126,9 @@ export default function AuthScreen({ onAuth }) {
             {mode === MODE.LOGIN ? "Sign up" : "Sign in"}
           </button>
         </p>
+        {/* <button onClick={loginWithGoogle}>
+        Login with Google
+        </button> */}
       </div>
     </div>
   )
