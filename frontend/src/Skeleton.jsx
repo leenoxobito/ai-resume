@@ -9,7 +9,7 @@ function SkeletonBlock ({ width = 'w-full', height = 'h-4' }) {
 export function FeedbackSkeleton() {
     return (
         <div className="space-y-3 animate-pulse">
-            <div className="flex items_center justify-between">
+            <div className="flex items-center justify-between">
                 <SkeletonBlock width="w-24" height="h-3" />
                 <SkeletonBlock width="w-12" height="h-5" />
             </div>

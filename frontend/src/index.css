@@ -1,4 +1,44 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Hide print-only elements in normal view */
+.print-title {
+  display: none;
+}
+
+@media print {
+  /* Hide UI chrome — only feedback section prints */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Show print-only header */
+  .print-title {
+    display: block !important;
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: #111;
+    border-bottom: 2px solid #6366f1;
+    padding-bottom: 8px;
+  }
+
+  body {
+    background: white !important;
+    color: #111 !important;
+    font-family: sans-serif;
+  }
+
+  /* Make feedback cards readable on paper */
+  [class*="border-gray-200"],
+  [class*="border-white"] {
+    border-color: #e5e7eb !important;
+    background: #f9fafb !important;
+  }
+
+  [class*="text-gray-600"],
+  [class*="text-white"] {
+    color: #374151 !important;
+  }
+}
