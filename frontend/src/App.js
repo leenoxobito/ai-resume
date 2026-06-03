@@ -1,312 +1,408 @@
 import { useState, useEffect, useRef } from 'react'
-import AuthScreen from "./AuthScreen.jsx"
-import { FeedbackSkeleton } from "./Skeleton.jsx"
+import AuthScreen from './AuthScreen.jsx'
+import { FeedbackSkeleton } from './Skeleton.jsx'
+import HistoryPanel from './compenents/HistoryPanel.jsx'
+import Toast from './compenents/Toast.jsx'
+import ScoreBadge from './compenents/ScoreBadge.jsx'
+import { useTheme } from './context/ThemeContext.jsx'
+import { useAuth } from './hooks/useAuth.js'
 
-const STATUS = { IDLE: 'idle', LOADING: "loading", SUCCESS: " success", ERROR: "error" }
+const STATUS = { IDLE: 'idle', LOADING: 'loading', SUCCESS: 'success', ERROR: 'error' }
 const MAX_CHARS = 5000
-
-function ScoreBadge({ score }) {
-  const num = parseInt(score)
-  const color =
-    num >=8 ? "text-emerald-400 border-emerald-400/30 bg-emerald-400/10"
-    : num >=5 ? "text-amber-400 border-amber-400/30 bg-amber-400/10"
-    : "text-rose-400 border-rose-400/40 bg-rose-400/10"
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full border text-xs font-semibold ${color}`}>
-        {num}/10
-      </span>
-    )
-}
-
-function FeedbackSection({ title, icon, children }) {
-    return( 
-      <div className="border border-white/5 rounded-xl p-4 bg-white/[0.02] space-y-2">
-        <div className="flex items-center gap-2 text-sm font-medium text-white/70">
-        <span>{icon}</span><span>{title}</span>
-        </div>
-        <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap">
-          {children}
-        </p>
-      </div>
-    )
-}
+const API = 'http://localhost:5000'
 
 function parseFeedback(text) {
-  if(!text) return null
-  const scoreMatch = text.match(/overall score[:\s]+(\d+)/i)
+  if (!text) return null
+  const scoreMatch = text.match(/overall score[:\s*]+(\d+)/i)
+  const atsMatch = text.match(/ats score[:\s*]+(\d+)/i)
   const section = (label) => {
-     const re = new RegExp(`${label}[:\\s\\*]+([\\s\\S]*?)(?=\\n\\n?\\d+\\.|\\n\\n?\\*\\*|$)`, "i")
+    const re = new RegExp(`${label}[:\\s\\*]+([\\s\\S]*?)(?=\\n\\n?\\d+\\.|\\n\\n?\\*\\*|$)`, 'i')
     const m = text.match(re)
     return m ? m[1].trim() : null
   }
   return {
-    score: scoreMatch ? scoreMatch[1]: null,
-    strengths: section("strengths"),
-    weaknesses: section("weaknesses"),
-    improvements: section("specific improvements"),
-    benchmark: section("industry benchmark"),
-    priorities: section("top 3 priority actions"),
+    score: scoreMatch ? scoreMatch[1] : null,
+    atsScore: atsMatch ? atsMatch[1] : null,
+    strengths: section('strengths'),
+    weaknesses: section('weaknesses'),
+    improvements: section('specific improvements'),
+    benchmark: section('industry benchmark'),
+    priorities: section('top 3 priority actions'),
+    ats: section('ats score'),
     raw: text,
   }
 }
 
+function FeedbackSection({ title, icon, children }) {
+  if (!children) return null
+  return (
+    <div className="border border-gray-200 dark:border-white/5 rounded-xl p-4 bg-gray-50 dark:bg-white/[0.02] space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-white/70">
+        <span>{icon}</span>
+        <span>{title}</span>
+      </div>
+      <p className="text-sm text-gray-600 dark:text-white/60 leading-relaxed whitespace-pre-wrap">
+        {children}
+      </p>
+    </div>
+  )
+}
+
+function ATSBadge({ score }) {
+  const num = parseInt(score)
+  if (isNaN(num)) return null
+  const color =
+    num >= 8
+      ? 'text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-400/30 bg-emerald-50 dark:bg-emerald-400/10'
+      : num >= 5
+      ? 'text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-400/30 bg-amber-50 dark:bg-amber-400/10'
+      : 'text-rose-600 dark:text-rose-400 border-rose-300 dark:border-rose-400/30 bg-rose-50 dark:bg-rose-400/10'
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full border text-xs font-semibold ${color}`}>
+      ATS {num}/10
+    </span>
+  )
+}
+
 export default function App() {
-  const [token, setToken] = useState(() => localStorage.getItem("token"))
-  const [userEmail, setUserEmail] = useState(() => localStorage.getItem("email") || "")
-  const [resume, setResume] = useState("")
+  const { token, email: userEmail, login, logout } = useAuth()
+  const { dark, toggleTheme } = useTheme()
+  const [resume, setResume] = useState('')
   const [status, setStatus] = useState(STATUS.IDLE)
   const [feedback, setFeedback] = useState(null)
-  const [errorMsg, setErrorMsg] = useState("")
+  const [errorMsg, setErrorMsg] = useState('')
   const [history, setHistory] = useState([])
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [uploadStatus, setUploadStatus] = useState("")
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState('')
+  const [toast, setToast] = useState(null)
   const fileRef = useRef()
 
-  const authHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${token}`}
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  }
 
+  const showToast = (message, type = 'success') => setToast({ message, type })
+
+  const fetchHistory = async () => {
+    setHistoryLoading(true)
+    try {
+      const res = await fetch(`${API}/api/analyse`, { headers: authHeaders })
+      if (!res.ok) return
+      const data = await res.json()
+      setHistory(data.resumes || [])
+    } catch {}
+    finally { setHistoryLoading(false) }
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (token) fetchHistory() }, [token])
 
-  const fetchHistory = async() => {
-    try { 
-      const res = await fetch("http://localhost:5000/api/analyse", { headers: authHeaders })
-      if(!res.ok) return
-      const data = await res.json()
-        setHistory(data.resumes || [])
-    } catch {}
-  }
-
-  const handleAuth = (newToken, email) => {
-    setToken(newToken)
-    setUserEmail(email)
-  }
-
   const handleLogout = () => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("email")
-    setToken(null)
-    setUserEmail("")
-    setResume("")
+    logout()
+    setResume('')
     setFeedback(null)
     setHistory([])
+    setStatus(STATUS.IDLE)
+    setErrorMsg('')
+    setUploadStatus('')
   }
 
-  const handlePdfUpload = async(e) => {
+  const handlePdfUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    setUploadStatus("Extracting text from PDF..")
-      const formData = new FormData()
-      formData.append("resume", file)
-
-      try { 
-        const res = await fetch("http://localhost:5000/api/upload", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error)
-          setResume(data.text.slice(0, MAX_CHARS))
-          setUploadStatus(`✅ Extracted ${data.pages} page${data.pages > 1? "s" : ""}`)
-      } catch (err) { 
-          setUploadStatus(`❌ ${err.message}`)
-      }
+    setUploadStatus('Extracting text from file…')
+    const formData = new FormData()
+    formData.append('resume', file)
+    try {
+      const res = await fetch(`${API}/api/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setResume(data.text.slice(0, MAX_CHARS))
+      setUploadStatus(`✅ Extracted ${data.pages} page${data.pages > 1 ? 's' : ''}`)
+    } catch (err) {
+      setUploadStatus(`❌ ${err.message}`)
+    }
   }
 
   const handleSubmit = async () => {
     if (!resume.trim() || status === STATUS.LOADING) return
     setStatus(STATUS.LOADING)
     setFeedback(null)
-    setErrorMsg("")
-
+    setErrorMsg('')
     try {
-      const res = await fetch("http://localhost:5000/api/analyse", {
-        method: "POST",
+      const res = await fetch(`${API}/api/analyse`, {
+        method: 'POST',
         headers: authHeaders,
         body: JSON.stringify({ resumeText: resume }),
       })
       const data = await res.json()
-      if(!res.ok) throw new Error(data.error || `Server error ${res.status}`)
-        setFeedback(parseFeedback(data.feedback))
-        setStatus(STATUS.SUCCESS)
-        fetchHistory()
+      if (!res.ok) throw new Error(data.error || `Server error ${res.status}`)
+      setFeedback(parseFeedback(data.feedback))
+      setStatus(STATUS.SUCCESS)
+      fetchHistory()
+      showToast('Analysis complete! See your feedback below.', 'success')
     } catch (err) {
       setErrorMsg(
-        err.message.includes("fetch")
-          ? "Cannot reach the server. Make sure your bacnkend is running on port 5000."
+        err.message.includes('fetch')
+          ? 'Cannot reach the server. Make sure the backend is running on port 5000.'
           : err.message
       )
       setStatus(STATUS.ERROR)
     }
   }
-  const reset = () => {
-    setResume("")
-    setFeedback(null)
-    setStatus(STATUS.IDLE)
-    setErrorMsg("")
-    setUploadStatus("")
+
+  const handleSelect = (r) => {
+    setResume(r.resume_text)
+    setFeedback(parseFeedback(r.feedback))
+    setStatus(r.feedback ? STATUS.SUCCESS : STATUS.IDLE)
+    setHistoryOpen(false)
   }
 
-  if (!token) return <AuthScreen onAuth={handleAuth} />
+  const handleDelete = async (id) => {
+    try {
+      const res = await fetch(`${API}/api/analyse/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      })
+      if (!res.ok) throw new Error()
+      setHistory(prev => prev.filter(r => r.id !== id))
+      showToast('Resume removed from history', 'info')
+    } catch {
+      showToast('Could not delete resume', 'error')
+    }
+  }
+
+  const reset = () => {
+    setResume('')
+    setFeedback(null)
+    setStatus(STATUS.IDLE)
+    setErrorMsg('')
+    setUploadStatus('')
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  if (!token) return <AuthScreen onAuth={login} />
 
   return (
-    <div className="min-h-screen bg-[#0a0a0b] text-white font-sans">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0b] text-gray-900 dark:text-white font-sans transition-colors duration-200">
+
+      {/* Subtle grid background */}
       <div
-        className="fixed inset-0 pointer-events-none opacity-[0.03]"
+        className="fixed inset-0 pointer-events-none opacity-[0.03] no-print"
         style={{
-          backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
-          backgroundSize: "40px 40px",
+          backgroundImage: `linear-gradient(${dark ? '#fff' : '#000'} 1px, transparent 1px), linear-gradient(90deg, ${dark ? '#fff' : '#000'} 1px, transparent 1px)`,
+          backgroundSize: '40px 40px',
         }}
-        />
-        {/* Header */}
-        <header className="relative border-b border-white/5 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-              <span className="font-semibold tracking-tight text-white/90">ResumeAI</span>
-            </div>
-            <div className="flex items-center gap-3"></div>
-              <button
-                onClick={() => setHistoryOpen(!historyOpen)}
-                className="flex -items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 text-xs text-white/50 hover:text-white/80 hover:border-white/20 transition-all"
-                >History
-                 {history.length > 0 && (
-                  <span className='bg-indigo-500/20 text-indigo-400 text-[10px] px-1.5 py-0.5 rounded-full border border-indigo-500/20'>
-                    {history.length}
-                  </span>
-                 )}
-              </button>  
-              <div className="flex items-center gap-2 pl-3 border-l border-white/10">
-              <span className="text-xs text-white/30"> {userEmail}</span>
-              <button
-                onClick={handleLogout}
-                className="text-s text-white/30 hover:text-rose-400 transition-colors"
-                >
-                  Sign Out
-                </button>
-              </div>
-          </div>  
-        </header>
+      />
 
-        <main className="relative max-w-2xl mx-auto px-4 py-10 space-y-6">
+      {/* Sticky header */}
+      <header className="sticky top-0 z-10 border-b border-gray-200 dark:border-white/5 bg-white/80 dark:bg-[#0a0a0b]/80 backdrop-blur-sm px-4 sm:px-6 py-3.5 flex items-center justify-between no-print">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
+            <span className="text-indigo-600 dark:text-indigo-400 text-xs font-bold">R</span>
+          </div>
+          <span className="font-semibold tracking-tight text-gray-900 dark:text-white/90">ResumeAI</span>
+        </div>
 
-          {/*History pannel */}
-          {historyOpen && (
-            <div className="border border-white/5 rounded-2xl bg-white/[0.02] p-4 space-y-2">
-              <p className="text-xs text-white/30 uppercase tracking-widest mb-3">Past resumes</p>
-              {history.length === 0 ? (
-                <p className="text-sm text-white/30 text-center py-4">No resumes yet</p>
-              ): history.map((r) => {
-                const p = parseFeedback(r.feedback)
-                const date = new Date(r.created_at).toLocaleDateString("en-IN", { day: 'numeric', month: "short", year: "numeric"})
-                  return (
-                    <button
-                      key={r.id}
-                      onClick={() => { 
-                        setResume(r.resume_text); 
-                        setFeedback(parseFeedback(r.feedback)); 
-                        setStatus(r.feedback ? STATUS.SUCCESS : STATUS.IDLE); 
-                        setHistoryOpen(false)
-                      }}
-                      className="w-full text-left px-4 py-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm text-white/60 truncate max-w-[200px]">{r.resume_text.slice(0, 50)}..</span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {p?.score && <ScoreBadge score={p.score} />}
-                          <span className="text-xs text-white/30">{date}
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                  )
-                })}
-            </div>
-          )}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* History */}
+          <button
+            onClick={() => setHistoryOpen(v => !v)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 text-xs text-gray-500 dark:text-white/50 hover:text-gray-800 dark:hover:text-white/80 hover:border-gray-300 dark:hover:border-white/20 transition-all"
+          >
+            History
+            {history.length > 0 && (
+              <span className="bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-[10px] px-1.5 py-0.5 rounded-full">
+                {history.length}
+              </span>
+            )}
+          </button>
 
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-white/90">Analyse your resume</h1>
-            <p className="text-sm text-white/40 mt-1">Paste text or upload a PDF to get AI feedback.</p>
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="p-1.5 rounded-lg border border-gray-200 dark:border-white/10 text-gray-500 dark:text-white/50 hover:text-gray-800 dark:hover:text-white/80 transition-all text-sm"
+          >
+            {dark ? '☀️' : '🌙'}
+          </button>
+
+          {/* User + sign out (hidden on small screens) */}
+          <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-gray-200 dark:border-white/10">
+            <span className="text-xs text-gray-400 dark:text-white/30 truncate max-w-[130px]">{userEmail}</span>
+            <button
+              onClick={handleLogout}
+              className="text-xs text-gray-400 dark:text-white/30 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"
+            >
+              Sign out
+            </button>
           </div>
 
-          {/*Input care */}
-          <div className="rounded-2xl border border-white/5 bg-white/[0.02] overflow-hidden">
-            <textarea
-              value={resume}
-              onChange={(e) => { if (e.target.value.length <= MAX_CHARS) setResume(e.target.value) }}
-              placeholder="Paste your resume text here.."
-              disabled={status === STATUS.LOADING}
-              className="w-full h-56 px-5 py-4 bg-transparent text-sm text-white/80 placeholder-white/20 resize-none focus:outline-none disabled:opacity-50"
+          {/* Mobile sign out */}
+          <button
+            onClick={handleLogout}
+            className="sm:hidden text-xs text-gray-400 dark:text-white/30 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      </header>
+
+      <main className="relative max-w-2xl mx-auto px-4 py-8 sm:py-10 space-y-6">
+
+        {/* History drawer */}
+        {historyOpen && (
+          <div className="border border-gray-200 dark:border-white/5 rounded-2xl bg-white dark:bg-white/[0.02] p-4 no-print">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-gray-400 dark:text-white/30 uppercase tracking-widest font-medium">
+                Past resumes
+              </p>
+              <button
+                onClick={() => setHistoryOpen(false)}
+                className="text-xs text-gray-400 dark:text-white/30 hover:text-gray-600 dark:hover:text-white/60 transition-colors"
+              >
+                ✕ Close
+              </button>
+            </div>
+            <HistoryPanel
+              history={history}
+              loading={historyLoading}
+              onSelect={handleSelect}
+              onDelete={handleDelete}
             />
-            <div className ="flex items-center justify-betweenpx-5 py-3 border-t border-white/5 flex-wrap gap-2">
-              <div className="flex items-center gap-3">
-                {/*PDF upload */}
-                <input ref={fileRef} type="file" accept=".pdf, .docx" onChange={handlePdfUpload} className="hidden" />
-                <button
-                    onClick={() => fileRef.current.click()}
-                    className="flex items-center gap-1.5 text-s text-white/40 hover:text-white/70 transition-colors"
-                    >
-                      <span>⬆️</span>Upload PDF
-                </button>
-                {uploadStatus && (
-                  <span className={`text-xs ${uploadStatus.startsWith("✅") ? "text-emerald-400": "text-white/25"}`}>
-                    {uploadStatus}
-                  </span>
-                )}
-                <span className={`text-xs ${resume.length > MAX_CHARS * 0.9 ? "text-amber-400": "text-white/25"}`}>
-                  {resume.length}/{MAX_CHARS}
-                </span>
-                </div>
-                <div className="flex gap-2">
-                  {(status !==STATUS.IDLE || resume) && (
-                    <button onClick={reset} className="px-3 oy-1.5 rounded-lg text-xs text-white/40 hover:text-white/7- transition-colors">
-                      Clear
-                    </button>
-                  )}
-                    <button
-                      onClick={handleSubmit}
-                      disabled={!resume.trim() || status === STATUS.LOADING}
-                      className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 disabled:text-indigo-600 text-xs font-medium transition-all"
-                      >
-                        {status === STATUS.LOADING ? (
-                          <span className="flex items-center gap-2">
-                            <span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
-                            Analysing..
-                          </span>
-                        ) : "Analyse"}
-                      </button>                
-                </div>
-            </div>
-           </div>
-
-           {/*Error*/}
-           {status === STATUS.ERROR && (
-            <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 flex items-start gap-3">
-              <span className="text-rose-400 text-sm mt-0.5">❌</span>
-              <div>
-                <p className="text-sm font-medium text-rose-400">Something went wrong</p>
-                <p className="text-xs text-rose-400/70 mt-0.5">{errorMsg}</p>
-              </div>
-            </div>
-           )}
-
-           {/*Skeleton while loading */}
-           {status === STATUS.LOADING && <FeedbackSkeleton />}
-
-           {/* Feedback */}
-        {status === STATUS.SUCCESS && feedback && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium text-white/60 uppercase tracking-widest">Feedback</h2>
-              {feedback.score && <ScoreBadge score={feedback.score} />}
-            </div>
-            {feedback.strengths && <FeedbackSection title="Strengths" icon="✦">{feedback.strengths}</FeedbackSection>}
-            {feedback.weaknesses && <FeedbackSection title="Weaknesses" icon="△">{feedback.weaknesses}</FeedbackSection>}
-            {feedback.improvements && <FeedbackSection title="Specific improvements" icon="→">{feedback.improvements}</FeedbackSection>}
-            {feedback.benchmark && <FeedbackSection title="Industry benchmark" icon="◎">{feedback.benchmark}</FeedbackSection>}
-            {feedback.priorities && <FeedbackSection title="Top 3 priority actions" icon="★">{feedback.priorities}</FeedbackSection>}
-            {!feedback.strengths && !feedback.weaknesses && <FeedbackSection title="Analysis" icon="✦">{feedback.raw}</FeedbackSection>}
           </div>
         )}
-        </main>
+
+        {/* Page heading */}
+        <div className="no-print">
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-gray-900 dark:text-white/90">
+            Analyse your resume
+          </h1>
+          <p className="text-sm text-gray-400 dark:text-white/40 mt-1">
+            Paste your resume or upload a PDF — get an AI score, detailed feedback, and ATS compatibility check.
+          </p>
+        </div>
+
+        {/* Input card */}
+        <div className="rounded-2xl border border-gray-200 dark:border-white/5 bg-white dark:bg-white/[0.02] overflow-hidden no-print">
+          <textarea
+            value={resume}
+            onChange={(e) => { if (e.target.value.length <= MAX_CHARS) setResume(e.target.value) }}
+            placeholder="Paste your resume text here…"
+            disabled={status === STATUS.LOADING}
+            className="w-full h-52 sm:h-56 px-5 py-4 bg-transparent text-sm text-gray-800 dark:text-white/80 placeholder-gray-300 dark:placeholder-white/20 resize-none focus:outline-none disabled:opacity-50"
+          />
+          <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-t border-gray-100 dark:border-white/5 flex-wrap gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <input ref={fileRef} type="file" accept=".pdf,.docx" onChange={handlePdfUpload} className="hidden" />
+              <button
+                onClick={() => fileRef.current.click()}
+                className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70 transition-colors"
+              >
+                ⬆ Upload PDF
+              </button>
+              {uploadStatus && (
+                <span className={`text-xs ${uploadStatus.startsWith('✅') ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-white/40'}`}>
+                  {uploadStatus}
+                </span>
+              )}
+              <span className={`text-xs ${resume.length > MAX_CHARS * 0.9 ? 'text-amber-500' : 'text-gray-300 dark:text-white/25'}`}>
+                {resume.length}/{MAX_CHARS}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              {(status !== STATUS.IDLE || resume) && (
+                <button
+                  onClick={reset}
+                  className="px-3 py-1.5 rounded-lg text-xs text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/70 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+              <button
+                onClick={handleSubmit}
+                disabled={!resume.trim() || status === STATUS.LOADING}
+                className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium transition-all"
+              >
+                {status === STATUS.LOADING ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
+                    Analysing…
+                  </span>
+                ) : 'Analyse'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Error state */}
+        {status === STATUS.ERROR && (
+          <div className="rounded-xl border border-rose-200 dark:border-rose-500/20 bg-rose-50 dark:bg-rose-500/5 px-4 py-3 flex items-start gap-3 no-print">
+            <span className="text-rose-500 text-sm mt-0.5">❌</span>
+            <div>
+              <p className="text-sm font-medium text-rose-600 dark:text-rose-400">Something went wrong</p>
+              <p className="text-xs text-rose-500 dark:text-rose-400/70 mt-0.5">{errorMsg}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Loading skeleton */}
+        {status === STATUS.LOADING && <FeedbackSkeleton />}
+
+        {/* Feedback results */}
+        {status === STATUS.SUCCESS && feedback && (
+          <div className="space-y-3">
+            {/* Feedback header */}
+            <div className="flex items-center justify-between flex-wrap gap-2 no-print">
+              <h2 className="text-xs font-semibold text-gray-400 dark:text-white/50 uppercase tracking-widest">
+                AI Feedback
+              </h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                {feedback.score && <ScoreBadge score={feedback.score} />}
+                {feedback.atsScore && <ATSBadge score={feedback.atsScore} />}
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 dark:border-white/10 text-xs text-gray-500 dark:text-white/40 hover:text-gray-800 dark:hover:text-white/70 hover:border-gray-300 dark:hover:border-white/20 transition-all"
+                  title="Save as PDF"
+                >
+                  ↓ Export PDF
+                </button>
+              </div>
+            </div>
+
+            {/* Print-only title (hidden in browser) */}
+            <div className="print-title">
+              Resume Analysis — Score: {feedback.score ?? '?'}/10
+              {feedback.atsScore ? ` | ATS: ${feedback.atsScore}/10` : ''}
+            </div>
+
+            <FeedbackSection title="Strengths" icon="✦">{feedback.strengths}</FeedbackSection>
+            <FeedbackSection title="Weaknesses" icon="△">{feedback.weaknesses}</FeedbackSection>
+            <FeedbackSection title="Specific Improvements" icon="→">{feedback.improvements}</FeedbackSection>
+            <FeedbackSection title="ATS Compatibility" icon="◉">{feedback.ats}</FeedbackSection>
+            <FeedbackSection title="Industry Benchmark" icon="◎">{feedback.benchmark}</FeedbackSection>
+            <FeedbackSection title="Top 3 Priority Actions" icon="★">{feedback.priorities}</FeedbackSection>
+            {!feedback.strengths && !feedback.weaknesses && (
+              <FeedbackSection title="Analysis" icon="✦">{feedback.raw}</FeedbackSection>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Toast notifications */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
-  ) 
+  )
 }

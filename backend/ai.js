@@ -21,13 +21,14 @@ const analyseResume = async (resumeText, pastResumes = []) => {
     const prompt = `
     You are an expert resume reviewer and career coach with deep knowledge of industry hiring standards.
     
-    Analyse the following resume and provide structured feedback using these exact heading:
-    1. Overrall Score - Rate out of 10 and explain why.
-    2. Strenghts - What is already good and industry standard.
-    3. Weaknesses - What is mmissing, unclear, or below standard.
-    4. Specific Improvements = Exact changes to make, section by section.
+    Analyse the following resume and provide structured feedback using these exact headings:
+    1. Overall Score - Rate out of 10 and explain why.
+    2. Strengths - What is already good and industry standard.
+    3. Weaknesses - What is missing, unclear, or below standard.
+    4. Specific Improvements - Exact changes to make, section by section.
     5. Industry Benchmark - How it compares to industry standards and past resumes.
     6. Top 3 Priority Actions - The 3 most important things to fix first.
+    7. ATS Score - Give an ATS (Applicant Tracking System) compatibility score out of 10. List key ATS-friendly keywords found in the resume, and 3-5 important keywords that are missing for this field.
     
     ${comparisonContext}
     
