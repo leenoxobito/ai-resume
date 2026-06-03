@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import AuthScreen from "./AuthScreen"
-import { FeedbackSkeleton } from "./Skeleton"
+import AuthScreen from "./AuthScreen.jsx"
+import { FeedbackSkeleton } from "./Skeleton.jsx"
 
-const STATUS = { IDLE: 'idle', LOADING: "loading", Success: " success", ERROR: "error" }
+const STATUS = { IDLE: 'idle', LOADING: "loading", SUCCESS: " success", ERROR: "error" }
 const MAX_CHARS = 5000
 
 function ScoreBadge({ score }) {
@@ -20,10 +20,13 @@ function ScoreBadge({ score }) {
 
 function FeedbackSection({ title, icon, children }) {
     return( 
-      <div className="border border-white/5 rounded-xl p-4 bg-white/[0.02] space-y-z">
+      <div className="border border-white/5 rounded-xl p-4 bg-white/[0.02] space-y-2">
         <div className="flex items-center gap-2 text-sm font-medium text-white/70">
         <span>{icon}</span><span>{title}</span>
         </div>
+        <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap">
+          {children}
+        </p>
       </div>
     )
 }
@@ -39,11 +42,11 @@ function parseFeedback(text) {
   return {
     score: scoreMatch ? scoreMatch[1]: null,
     strengths: section("strengths"),
-    weaknesses: section("weakenesses"),
+    weaknesses: section("weaknesses"),
     improvements: section("specific improvements"),
     benchmark: section("industry benchmark"),
-    priorities: section("top 3 priorirty actions"),
-    raw: test,
+    priorities: section("top 3 priority actions"),
+    raw: text,
   }
 }
 
@@ -77,7 +80,7 @@ export default function App() {
     setUserEmail(email)
   }
 
-  const handlelogout = () => {
+  const handleLogout = () => {
     localStorage.removeItem("token")
     localStorage.removeItem("email")
     setToken(null)
@@ -95,7 +98,7 @@ export default function App() {
       formData.append("resume", file)
 
       try { 
-        const res = await fetch("http://localhostt:5000/api/upload", {
+        const res = await fetch("http://localhost:5000/api/upload", {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
           body: formData,
@@ -123,7 +126,7 @@ export default function App() {
       })
       const data = await res.json()
       if(!res.ok) throw new Error(data.error || `Server error ${res.status}`)
-        setFeedback(parsefeedback(data.feedback))
+        setFeedback(parseFeedback(data.feedback))
         setStatus(STATUS.SUCCESS)
         fetchHistory()
     } catch (err) {
@@ -135,7 +138,7 @@ export default function App() {
       setStatus(STATUS.ERROR)
     }
   }
-  const rest = () => {
+  const reset = () => {
     setResume("")
     setFeedback(null)
     setStatus(STATUS.IDLE)
@@ -157,7 +160,7 @@ export default function App() {
         {/* Header */}
         <header className="relative border-b border-white/5 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w07 h-7 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
               <span className="font-semibold tracking-tight text-white/90">ResumeAI</span>
             </div>
             <div className="flex items-center gap-3"></div>
@@ -171,10 +174,10 @@ export default function App() {
                   </span>
                  )}
               </button>  
-              <div className="flex items-center gap-2 pl-3 border-1 border-white/10">
+              <div className="flex items-center gap-2 pl-3 border-l border-white/10">
               <span className="text-xs text-white/30"> {userEmail}</span>
               <button
-                onClick={handlelogout}
+                onClick={handleLogout}
                 className="text-s text-white/30 hover:text-rose-400 transition-colors"
                 >
                   Sign Out
@@ -233,7 +236,7 @@ export default function App() {
               disabled={status === STATUS.LOADING}
               className="w-full h-56 px-5 py-4 bg-transparent text-sm text-white/80 placeholder-white/20 resize-none focus:outline-none disabled:opacity-50"
             />
-            <div className ="flex-items-center justify-betweenpx-5 py-3 border-t border-white/5 flex-wrap gap-2">
+            <div className ="flex items-center justify-betweenpx-5 py-3 border-t border-white/5 flex-wrap gap-2">
               <div className="flex items-center gap-3">
                 {/*PDF upload */}
                 <input ref={fileRef} type="file" accept=".pdf, .docx" onChange={handlePdfUpload} className="hidden" />
@@ -260,7 +263,7 @@ export default function App() {
                   )}
                     <button
                       onClick={handleSubmit}
-                      disbaled={!resume.trim() || status === STATUS.LOADING}
+                      disabled={!resume.trim() || status === STATUS.LOADING}
                       className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 disabled:text-indigo-600 text-xs font-medium transition-all"
                       >
                         {status === STATUS.LOADING ? (

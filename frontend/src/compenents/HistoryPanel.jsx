@@ -1,4 +1,4 @@
-import ScoreBadge from './ScoreBadge'
+import ScoreBadge from './ScoreBadge.jsx'
 
 function extractScore(feedback){
     if (!feedback) return null

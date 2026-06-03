@@ -1,5 +1,5 @@
-import ScoreBadge from './ScoreBadge'
-import { FeedbackSkeleton } from './Skeleton'
+import ScoreBadge from './ScoreBadge.jsx'
+import { FeedbackSkeleton } from './Skeleton.jsx'
 
 function parseFeedback(text) {
     if (!text) return null

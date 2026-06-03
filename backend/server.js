@@ -1,9 +1,10 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+require('dotenv').config({path: __dirname + '/.env'});
+console.log("ENV KEY:", process.env.OPENROUTER_API_KEY);
 
 const analyseRoute = require('./routes/analyse');
-const updateRoute = require('./routes/update');
+const uploadRoute = require('./routes/upload');
 const  { router: authRoute} = require('./routes/auth');
 const {generalLimiter, analyseLimiter,authLimiter} = require('./middleware/rateLimiter');
 
@@ -31,6 +32,6 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'An unexpected error has occrured'});
 });
 
-const PORT = precess.env.PORT || 5000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on https://localhost:${PORT}`));
 module.exports = app;

@@ -1,6 +1,6 @@
-CREATE TABLE IF NOT EXISTS resume (
+CREATE TABLE IF NOT EXISTS resumes (
     id           INT AUTO_INCREMENT PRIMARY KEY,
-    resume_text  LOMGTEXT NOT NULL,
+    resume_text  LONGTEXT NOT NULL,
     feedback     TEXT,
     user_id      INT,
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

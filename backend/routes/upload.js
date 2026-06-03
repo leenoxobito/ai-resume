@@ -16,7 +16,7 @@ const upload = multer({
     },
 })
 
-router.post('/', ipload.single('resume'), async (req, res, next) => {
+router.post('/', upload.single('resume'), async (req, res, next) => {
     if (!req.file){
         return res.status(400).json({error: 'No file uploaded. Please attach a PDF.' })
     }

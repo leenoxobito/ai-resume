@@ -30,7 +30,7 @@ router.post('/', requireAuth, sanitiseResume, validateResume, async (req, res, n
 
     try{
         const[pastResumes] = await pool.query(
-            'SELECT resume FROM resumees ORDER BY created_at DESC LIMIT 10'
+            'SELECT resume_text FROM resumes ORDER BY created_at DESC LIMIT 10'
     )
     
     const feedback = await analyseResume(resumeText, pastResumes)
@@ -76,7 +76,7 @@ router.get('/', requireAuth, async (req, res, next) => {
             `SELECT id, resume_text, feedback, created_at
             FROM resumes
             WHERE user_id=?
-            ORDER BY created_at DESC`
+            ORDER BY created_at DESC`,
             [req.user.id]
         )
         res.status(200).json({ resumes: rows})

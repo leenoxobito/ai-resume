@@ -1,6 +1,9 @@
+const axios = require('axios'); // ✅ fixed
 require('dotenv').config();
 
-const analyseResume = async ( resumeText, pastResumes = []) => {
+const analyseResume = async (resumeText, pastResumes = []) => {
+    console.log("ENV KEY:", process.env.OPENROUTER_API_KEY);
+
     if (!process.env.OPENROUTER_API_KEY) {
         throw new Error(' OPENROUTER_API_KEY is missing from your .env file');
     }
@@ -8,12 +11,12 @@ const analyseResume = async ( resumeText, pastResumes = []) => {
     if (resumeText.trim().length < 50) {
         throw new Error('Resume is too short to analyse. Please paste the full resume text.');
     }
-    
-    const comparisonContext = 
+
+    const comparisonContext =
         pastResumes.length > 0
-        ? `For benchmarking, here are ${pastResumes.length} previously analysed resumes:\n\n` +
-            pastResumes.map((r, i) => `--Resume ${i + 1} ---\n${r.resume_text}`).join('\n\n')
-        : 'No past resumes available for comparison yet.';
+            ? `For benchmarking, here are ${pastResumes.length} previously analysed resumes:\n\n` +
+              pastResumes.map((r, i) => `--Resume ${i + 1} ---\n${r.resume_text}`).join('\n\n')
+            : 'No past resumes available for comparison yet.';
 
     const prompt = `
     You are an expert resume reviewer and career coach with deep knowledge of industry hiring standards.
@@ -34,14 +37,37 @@ const analyseResume = async ( resumeText, pastResumes = []) => {
     ---
     
     Respond in clear, readable plain text. Use the section heading exactly as listed above.
-    `
-        const reponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    `;
+
+    try {
+        const response = await axios.post(
+            'https://openrouter.ai/api/v1/chat/completions',
+            {
+                model: "openrouter/free",
+                //model: process.env.AI_MODEL || 'meta-llama/llama-3-8b-instruct:free',
+                messages: [
+                    { role: 'user', content: prompt }
+                ]
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer' : 'http://localhost:3000',
+                    'X-Title' : 'Resume Analyser',
+                }
+            }
+        );
+
+        const resultText = response.data.choices?.[0]?.message?.content;
+
+        /*const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: "POST",
             headers: { 
                 'Authorization' : `Bearer ${process.env.OPENROUTER_API_KEY}`,
                 'Content-Type' : 'application/json',
-                'HTTP-Referer' : 'http://localhost:3000',
-                'X-Title' : 'Resume Analyser', 
+                //'HTTP-Referer' : 'http://localhost:3000',
+                //'X-Title' : 'Resume Analyser', 
             },
             body: JSON.stringify ({
                 model: process.env.AI_MODEL || 'mistralai/mistral-7b-instruct:free',
@@ -50,21 +76,26 @@ const analyseResume = async ( resumeText, pastResumes = []) => {
                 ],
                 max_tokens: 1024,
             }),
-        });
+        });*/
 
-        if (!response.ok){
-            const err = await response.json().catch(() => ({}));
-            if(response.status === 401) throw new Error('Invalid OpenRouter API key. Check your .env file.');      
-            if (response.status === 429) throw new Error ('Rate limit hit. Wait a moment and try again.');
-            throw new Error(err.error?.message || `OpenRouter error ${response.status}`);
+        if (!resultText) {
+            throw new Error('AI returned an empty response. Please try again.');
         }
 
-        const data = await response.json();
-        const text = data.choices?.[0]?.message?.content;
+        return resultText;
 
-        if (!text) throw new Error('AI returned an empty response. Please try again.');
+    } catch (err) {
+        console.error("FULL ERROR:", err.response?.data || err.message);
 
-        return text;
+        if (err.response?.status === 401) {
+            throw new Error('Invalid OpenRouter API key. Check your .env file.');
+        }
+        if (err.response?.status === 429) {
+            throw new Error('Rate limit hit. Wait a moment and try again.');
+        }
+
+        throw new Error('OpenRouter request failed');
+    }
 };
 
-module.exports = {analyseResume};
+module.exports = { analyseResume };

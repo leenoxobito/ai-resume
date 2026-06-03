@@ -27,7 +27,7 @@ router.post('/register', async (req, res, next) => {
     
     if (!email || !password)
         return res.status(400).json({ error: 'Email and password are required. '})
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/,test(email))
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
         return res.status(400).json({ error: 'Please enter a valid email address.'})
     if (password.length < 8)
         return res.status(400).json({ error: 'Password must be at least 8 characters' })
@@ -41,7 +41,7 @@ router.post('/register', async (req, res, next) => {
         const passwordHash = await bcrypt.hash(password, SALT_ROUNDS)
 
         const [result] = await pool.query(
-            "INSERT INTO users (email, password_hash) VALUES (?, ?)"
+            "INSERT INTO users (email, password_hash) VALUES (?, ?)",
             [email, passwordHash] 
         )
 
@@ -49,7 +49,7 @@ router.post('/register', async (req, res, next) => {
             id: result.insertId,
             email},
             JWT_SECRET,
-            { expiresIN: '7d'},
+            { expiresIn: '7d'},
         )
         res.status(201).json({ token, email})
     }catch (err) {
