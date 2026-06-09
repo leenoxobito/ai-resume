@@ -48,7 +48,9 @@ const analyseResume = async (resumeText, pastResumes = []) => {
                 //model: process.env.AI_MODEL || 'meta-llama/llama-3-8b-instruct:free',
                 messages: [
                     { role: 'user', content: prompt }
-                ]
+                ], 
+                max_token: 1200,
+                temperature: 0.7
             },
             {
                 headers: {
